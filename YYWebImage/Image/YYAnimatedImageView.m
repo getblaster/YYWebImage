@@ -46,6 +46,86 @@ static int64_t _YYDeviceMemoryFree() {
     return vm_stat.free_count * page_size;
 }
 
+static CGRect _YYACGRectFitWithContentMode(CGRect rect, CGSize size, UIViewContentMode mode) {
+    rect = CGRectStandardize(rect);
+    size.width = size.width < 0 ? -size.width : size.width;
+    size.height = size.height < 0 ? -size.height : size.height;
+    CGPoint center = CGPointMake(CGRectGetMidX(rect), CGRectGetMidY(rect));
+    switch (mode) {
+        case UIViewContentModeScaleAspectFit:
+        case UIViewContentModeScaleAspectFill: {
+            if (rect.size.width < 0.01 || rect.size.height < 0.01 ||
+                size.width < 0.01 || size.height < 0.01) {
+                rect.origin = center;
+                rect.size = CGSizeZero;
+            } else {
+                CGFloat scale;
+                if (mode == UIViewContentModeScaleAspectFit) {
+                    if (size.width / size.height < rect.size.width / rect.size.height) {
+                        scale = rect.size.height / size.height;
+                    } else {
+                        scale = rect.size.width / size.width;
+                    }
+                } else {
+                    if (size.width / size.height < rect.size.width / rect.size.height) {
+                        scale = rect.size.width / size.width;
+                    } else {
+                        scale = rect.size.height / size.height;
+                    }
+                }
+                size.width *= scale;
+                size.height *= scale;
+                rect.size = size;
+                rect.origin = CGPointMake(center.x - size.width * 0.5, center.y - size.height * 0.5);
+            }
+        } break;
+        case UIViewContentModeCenter: {
+            rect.size = size;
+            rect.origin = CGPointMake(center.x - size.width * 0.5, center.y - size.height * 0.5);
+        } break;
+        case UIViewContentModeTop: {
+            rect.origin.x = center.x - size.width * 0.5;
+            rect.size = size;
+        } break;
+        case UIViewContentModeBottom: {
+            rect.origin.x = center.x - size.width * 0.5;
+            rect.origin.y += rect.size.height - size.height;
+            rect.size = size;
+        } break;
+        case UIViewContentModeLeft: {
+            rect.origin.y = center.y - size.height * 0.5;
+            rect.size = size;
+        } break;
+        case UIViewContentModeRight: {
+            rect.origin.y = center.y - size.height * 0.5;
+            rect.origin.x += rect.size.width - size.width;
+            rect.size = size;
+        } break;
+        case UIViewContentModeTopLeft: {
+            rect.size = size;
+        } break;
+        case UIViewContentModeTopRight: {
+            rect.origin.x += rect.size.width - size.width;
+            rect.size = size;
+        } break;
+        case UIViewContentModeBottomLeft: {
+            rect.origin.y += rect.size.height - size.height;
+            rect.size = size;
+        } break;
+        case UIViewContentModeBottomRight: {
+            rect.origin.x += rect.size.width - size.width;
+            rect.origin.y += rect.size.height - size.height;
+            rect.size = size;
+        } break;
+        case UIViewContentModeScaleToFill:
+        case UIViewContentModeRedraw:
+        default: {
+            rect = rect;
+        }
+    }
+    return rect;
+}
+
 /**
  A proxy used to hold a weak object.
  It can be used to avoid retain cycles, such as the target in NSTimer or CADisplayLink.
@@ -150,11 +230,94 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
 - (void)calcMaxBufferCount;
 @end
 
+@implementation UIImage (_YYAnimatedImageViewFetchOperation)
+
+- (UIImage *)yya_imageByRoundCornerRadius:(CGFloat)radius
+                                  corners:(UIRectCorner)corners
+                              borderWidth:(CGFloat)borderWidth
+                              borderColor:(UIColor *)borderColor
+                           borderLineJoin:(CGLineJoin)borderLineJoin {
+    
+    if (corners != UIRectCornerAllCorners) {
+        UIRectCorner tmp = 0;
+        if (corners & UIRectCornerTopLeft) tmp |= UIRectCornerBottomLeft;
+        if (corners & UIRectCornerTopRight) tmp |= UIRectCornerBottomRight;
+        if (corners & UIRectCornerBottomLeft) tmp |= UIRectCornerTopLeft;
+        if (corners & UIRectCornerBottomRight) tmp |= UIRectCornerTopRight;
+        corners = tmp;
+    }
+    
+    UIGraphicsBeginImageContextWithOptions(self.size, NO, self.scale);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGRect rect = CGRectMake(0, 0, self.size.width, self.size.height);
+    CGContextScaleCTM(context, 1, -1);
+    CGContextTranslateCTM(context, 0, -rect.size.height);
+    
+    CGFloat minSize = MIN(self.size.width, self.size.height);
+    if (borderWidth < minSize / 2) {
+        UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:CGRectInset(rect, borderWidth, borderWidth) byRoundingCorners:corners cornerRadii:CGSizeMake(radius, borderWidth)];
+        [path closePath];
+        
+        CGContextSaveGState(context);
+        [path addClip];
+        CGContextDrawImage(context, rect, self.CGImage);
+        CGContextRestoreGState(context);
+    }
+    
+    if (borderColor && borderWidth < minSize / 2 && borderWidth > 0) {
+        CGFloat strokeInset = (floor(borderWidth * self.scale) + 0.5) / self.scale;
+        CGRect strokeRect = CGRectInset(rect, strokeInset, strokeInset);
+        CGFloat strokeRadius = radius > self.scale / 2 ? radius - self.scale / 2 : 0;
+        UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:strokeRect byRoundingCorners:corners cornerRadii:CGSizeMake(strokeRadius, borderWidth)];
+        [path closePath];
+        
+        path.lineWidth = borderWidth;
+        path.lineJoinStyle = borderLineJoin;
+        [borderColor setStroke];
+        [path stroke];
+    }
+    
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+- (UIImage *)yya_imageByResizeToSize:(CGSize)size contentMode:(UIViewContentMode)contentMode {
+    if (size.width <= 0 || size.height <= 0) return nil;
+    UIGraphicsBeginImageContextWithOptions(size, NO, self.scale);
+    [self yya_drawInRect:CGRectMake(0, 0, size.width, size.height) withContentMode:contentMode clipsToBounds:NO];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+- (void)yya_drawInRect:(CGRect)rect withContentMode:(UIViewContentMode)contentMode clipsToBounds:(BOOL)clips{
+    CGRect drawRect = _YYACGRectFitWithContentMode(rect, self.size, contentMode);
+    if (drawRect.size.width == 0 || drawRect.size.height == 0) return;
+    if (clips) {
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        if (context) {
+            CGContextSaveGState(context);
+            CGContextAddRect(context, rect);
+            CGContextClip(context);
+            [self drawInRect:drawRect];
+            CGContextRestoreGState(context);
+        }
+    } else {
+        [self drawInRect:drawRect];
+    }
+}
+
+@end
+
 /// An operation for image fetch
 @interface _YYAnimatedImageViewFetchOperation : NSOperation
 @property (nonatomic, weak) YYAnimatedImageView *view;
 @property (nonatomic, assign) NSUInteger nextIndex;
 @property (nonatomic, strong) UIImage <YYAnimatedImage> *curImage;
+@property (nonatomic, assign) CGSize cropSize;
+@property (nonatomic, assign) UIViewContentMode contentMode;
+@property (nonatomic, assign) CGFloat cornerRadius;
 @end
 
 @implementation _YYAnimatedImageViewFetchOperation
@@ -182,6 +345,12 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
             
             if (miss) {
                 UIImage *img = [_curImage animatedImageFrameAtIndex:idx];
+                if (!CGSizeEqualToSize(self.cropSize, CGSizeZero)) {
+                    img = [img yya_imageByResizeToSize:self.cropSize contentMode:self.contentMode];
+                }
+                if (self.cornerRadius != 0.0) {
+                    img = [img yya_imageByRoundCornerRadius:self.cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
+                }
                 img = img.yy_imageByDecoded;
                 if ([self isCancelled]) break;
                 LOCK_VIEW(view->_buffer[@(idx)] = img ? img : [NSNull null]);
@@ -368,6 +537,12 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
         [self resetAnimated];
         _curAnimatedImage = newVisibleImage;
         _curFrame = newVisibleImage;
+        if (!CGSizeEqualToSize(self.cropSize, CGSizeZero)) {
+           _curFrame = [_curFrame yya_imageByResizeToSize:self.cropSize contentMode:self.contentMode];
+        }
+        if (self.cornerRadius != 0.0) {
+           _curFrame = [_curFrame yya_imageByRoundCornerRadius:self.cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
+        }
         _totalLoop = _curAnimatedImage.animatedImageLoopCount;
         _totalFrameCount = _curAnimatedImage.animatedImageFrameCount;
         [self calcMaxBufferCount];
@@ -521,6 +696,9 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
         operation.view = self;
         operation.nextIndex = nextIndex;
         operation.curImage = image;
+        operation.cropSize = self.cropSize;
+        operation.contentMode = self.contentMode;
+        operation.cornerRadius = self.cornerRadius;
         [_requestQueue addOperation:operation];
     }
 }

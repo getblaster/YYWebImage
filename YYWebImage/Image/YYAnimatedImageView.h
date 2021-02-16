@@ -80,6 +80,10 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic) NSUInteger maxBufferSize;
 
+@property (nonatomic) CGSize cropSize;
+
+@property (nonatomic) CGFloat cornerRadius;
+
 @end
 
 
