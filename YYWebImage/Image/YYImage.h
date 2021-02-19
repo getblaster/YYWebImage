@@ -57,6 +57,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable YYImage *)imageWithContentsOfFile:(NSString *)path;
 + (nullable YYImage *)imageWithData:(NSData *)data;
 + (nullable YYImage *)imageWithData:(NSData *)data scale:(CGFloat)scale;
++ (nullable YYImage *)imageWithData:(NSData *)data scale:(CGFloat)scale image:(UIImage *)image;
 
 /**
  If the image is created from data or file, then the value indicates the data type.

@@ -537,15 +537,11 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
         [self resetAnimated];
         _curAnimatedImage = newVisibleImage;
         _curFrame = newVisibleImage;
-        if (!CGSizeEqualToSize(self.cropSize, CGSizeZero)) {
-           _curFrame = [_curFrame yya_imageByResizeToSize:self.cropSize contentMode:self.contentMode];
-        }
-        if (self.cornerRadius != 0.0) {
-           _curFrame = [_curFrame yya_imageByRoundCornerRadius:self.cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
-        }
         _totalLoop = _curAnimatedImage.animatedImageLoopCount;
         _totalFrameCount = _curAnimatedImage.animatedImageFrameCount;
         [self calcMaxBufferCount];
+    } else {
+        _curFrame = newVisibleImage;
     }
     [self setNeedsDisplay];
     [self didMoved];

@@ -132,6 +132,10 @@ static CGFloat _NSStringPathScale(NSString *string) {
     return [[self alloc] initWithData:data scale:scale];
 }
 
++ (YYImage *)imageWithData:(NSData *)data scale:(CGFloat)scale image:(UIImage *)image {
+    return [[self alloc] initWithData:data scale:scale image:image];
+}
+
 - (instancetype)initWithContentsOfFile:(NSString *)path {
     NSData *data = [NSData dataWithContentsOfFile:path];
     return [self initWithData:data scale:_NSStringPathScale(path)];
@@ -142,13 +146,17 @@ static CGFloat _NSStringPathScale(NSString *string) {
 }
 
 - (instancetype)initWithData:(NSData *)data scale:(CGFloat)scale {
+    return [self initWithData:data scale:scale image:nil];
+}
+
+- (instancetype)initWithData:(NSData *)data scale:(CGFloat)scale image:(UIImage *)image {
     if (data.length == 0) return nil;
     if (scale <= 0) scale = [UIScreen mainScreen].scale;
     _preloadedLock = dispatch_semaphore_create(1);
     @autoreleasepool {
         YYImageDecoder *decoder = [YYImageDecoder decoderWithData:data scale:scale];
         YYImageFrame *frame = [decoder frameAtIndex:0 decodeForDisplay:YES];
-        UIImage *image = frame.image;
+        image = image ?: frame.image;
         if (!image) return nil;
         self = [self initWithCGImage:image.CGImage scale:decoder.scale orientation:image.imageOrientation];
         if (!self) return nil;

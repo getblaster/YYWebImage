@@ -12,6 +12,8 @@
 #import "UIImageView+YYWebImage.h"
 #import "YYWebImageOperation.h"
 #import "_YYWebImageSetter.h"
+#import "UIImage+YYWebImage.h"
+#import <YYImage/YYImage.h>
 #import <objc/runtime.h>
 
 // Dummy class for category
@@ -121,8 +123,17 @@ static int _YYWebImageHighlightedSetterKey;
             return;
         }
         
+        CGSize cropSize = CGSizeZero;
+        UIViewContentMode contentMode = self.contentMode;
+        CGFloat cornerRadius = 0.0;
+        
+        if ([self isKindOfClass:YYAnimatedImageView.class]) {
+            cropSize = ((YYAnimatedImageView *)self).cropSize;
+            cornerRadius = ((YYAnimatedImageView *)self).cornerRadius;
+        }
+        
         // get the image from memory as quickly as possible
-        UIImage *imageFromMemory = nil;
+        __block UIImage *imageFromMemory = nil;
         if (manager.cache &&
             !(options & YYWebImageOptionUseNSURLCache) &&
             !(options & YYWebImageOptionRefreshImageCache)) {
@@ -130,9 +141,32 @@ static int _YYWebImageHighlightedSetterKey;
         }
         if (imageFromMemory) {
             if (!(options & YYWebImageOptionAvoidSetImage)) {
-                self.image = imageFromMemory;
+                __weak typeof(self) _self = self;
+                dispatch_async([_YYWebImageSetter setterQueue], ^{
+                    __strong typeof(_self) self = _self;
+                    
+                    if (!CGSizeEqualToSize(cropSize, CGSizeZero)) {
+                        if ([imageFromMemory isKindOfClass:YYImage.class] && ((YYImage *)imageFromMemory).animatedImageData != nil) {
+                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByResizeToSize:cropSize contentMode:contentMode]];
+                        } else {
+                            imageFromMemory = [imageFromMemory yy_imageByResizeToSize:cropSize contentMode:contentMode];
+                        }
+                    }
+                    
+                    if (cornerRadius != 0.0) {
+                        if ([imageFromMemory isKindOfClass:YYImage.class] && ((YYImage *)imageFromMemory).animatedImageData != nil) {
+                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter]];
+                        } else {
+                            imageFromMemory = [imageFromMemory yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
+                        }
+                    }
+                    
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        self.image = imageFromMemory;
+                        if(completion) completion(imageFromMemory, imageURL, YYWebImageFromMemoryCacheFast, YYWebImageStageFinished, nil);
+                    });
+                });
             }
-            if(completion) completion(imageFromMemory, imageURL, YYWebImageFromMemoryCacheFast, YYWebImageStageFinished, nil);
             return;
         }
         
@@ -154,6 +188,23 @@ static int _YYWebImageHighlightedSetterKey;
             YYWebImageCompletionBlock _completion = ^(UIImage *image, NSURL *url, YYWebImageFromType from, YYWebImageStage stage, NSError *error) {
                 __strong typeof(_self) self = _self;
                 BOOL setImage = (stage == YYWebImageStageFinished || stage == YYWebImageStageProgress) && image && !(options & YYWebImageOptionAvoidSetImage);
+                
+                if (!CGSizeEqualToSize(cropSize, CGSizeZero)) {
+                    if ([image isKindOfClass:YYImage.class] && ((YYImage *)image).animatedImageData != nil) {
+                        image = [YYImage imageWithData:((YYImage *)image).animatedImageData scale:image.scale image:[image yy_imageByResizeToSize:cropSize contentMode:contentMode]];
+                    } else {
+                        image = [image yy_imageByResizeToSize:cropSize contentMode:contentMode];
+                    }
+                }
+                
+                if (cornerRadius != 0.0) {
+                    if ([image isKindOfClass:YYImage.class] && ((YYImage *)image).animatedImageData != nil) {
+                        image = [YYImage imageWithData:((YYImage *)image).animatedImageData scale:image.scale image:[image yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter]];
+                    } else {
+                        image = [image yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
+                    }
+                }
+                
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BOOL sentinelChanged = weakSetter && weakSetter.sentinel != newSentinel;
                     if (setImage && self && !sentinelChanged) {
