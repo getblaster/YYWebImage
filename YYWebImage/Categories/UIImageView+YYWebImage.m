@@ -123,6 +123,25 @@ static int _YYWebImageHighlightedSetterKey;
             return;
         }
         
+        // get the image from memory as quickly as possible
+        UIImage *imageFromMemory = nil;
+        if (manager.cache &&
+            !(options & YYWebImageOptionUseNSURLCache) &&
+            !(options & YYWebImageOptionRefreshImageCache)) {
+            imageFromMemory = [manager.cache getImageForKey:[manager cacheKeyForURL:imageURL] withType:YYImageCacheTypeMemory];
+        }
+        if (imageFromMemory) {
+            if (!(options & YYWebImageOptionAvoidSetImage)) {
+                self.image = imageFromMemory;
+            }
+            if(completion) completion(imageFromMemory, imageURL, YYWebImageFromMemoryCacheFast, YYWebImageStageFinished, nil);
+            return;
+        }
+        
+        if (!(options & YYWebImageOptionIgnorePlaceHolder)) {
+            self.image = placeholder;
+        }
+        
         CGSize cropSize = CGSizeZero;
         UIViewContentMode cropContentMode = self.contentMode;
         CGFloat cornerRadius = 0.0;
@@ -131,48 +150,6 @@ static int _YYWebImageHighlightedSetterKey;
             cropSize = ((YYAnimatedImageView *)self).cropSize;
             cropContentMode = ((YYAnimatedImageView *)self).cropContentMode;
             cornerRadius = ((YYAnimatedImageView *)self).cornerRadius;
-        }
-        
-        // get the image from memory as quickly as possible
-        __block UIImage *imageFromMemory = nil;
-        if (manager.cache &&
-            !(options & YYWebImageOptionUseNSURLCache) &&
-            !(options & YYWebImageOptionRefreshImageCache)) {
-            imageFromMemory = [manager.cache getImageForKey:[manager cacheKeyForURL:imageURL] withType:YYImageCacheTypeMemory];
-        }
-        if (imageFromMemory) {
-            if (!(options & YYWebImageOptionAvoidSetImage)) {
-                __weak typeof(self) _self = self;
-                dispatch_async([_YYWebImageSetter setterQueue], ^{
-                    __strong typeof(_self) self = _self;
-                    
-                    if (!CGSizeEqualToSize(cropSize, CGSizeZero)) {
-                        if ([imageFromMemory isKindOfClass:YYImage.class] && ((YYImage *)imageFromMemory).animatedImageData != nil) {
-                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByResizeToSize:cropSize contentMode:cropContentMode]];
-                        } else {
-                            imageFromMemory = [imageFromMemory yy_imageByResizeToSize:cropSize contentMode:cropContentMode];
-                        }
-                    }
-                    
-                    if (cornerRadius != 0.0) {
-                        if ([imageFromMemory isKindOfClass:YYImage.class] && ((YYImage *)imageFromMemory).animatedImageData != nil) {
-                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter]];
-                        } else {
-                            imageFromMemory = [imageFromMemory yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
-                        }
-                    }
-                    
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        self.image = imageFromMemory;
-                        if(completion) completion(imageFromMemory, imageURL, YYWebImageFromMemoryCacheFast, YYWebImageStageFinished, nil);
-                    });
-                });
-            }
-            return;
-        }
-        
-        if (!(options & YYWebImageOptionIgnorePlaceHolder)) {
-            self.image = placeholder;
         }
         
         __weak typeof(self) _self = self;
@@ -205,6 +182,8 @@ static int _YYWebImageHighlightedSetterKey;
                         image = [image yy_imageByRoundCornerRadius:cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
                     }
                 }
+                
+                [manager.cache setImage:image imageData:nil forKey:[manager cacheKeyForURL:imageURL] withType:YYImageCacheTypeMemory];
                 
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BOOL sentinelChanged = weakSetter && weakSetter.sentinel != newSentinel;
