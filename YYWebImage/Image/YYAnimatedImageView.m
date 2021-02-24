@@ -316,7 +316,7 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
 @property (nonatomic, assign) NSUInteger nextIndex;
 @property (nonatomic, strong) UIImage <YYAnimatedImage> *curImage;
 @property (nonatomic, assign) CGSize cropSize;
-@property (nonatomic, assign) UIViewContentMode contentMode;
+@property (nonatomic, assign) UIViewContentMode cropContentMode;
 @property (nonatomic, assign) CGFloat cornerRadius;
 @end
 
@@ -345,13 +345,13 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
             
             if (miss) {
                 UIImage *img = [_curImage animatedImageFrameAtIndex:idx];
+                img = img.yy_imageByDecoded;
                 if (!CGSizeEqualToSize(self.cropSize, CGSizeZero)) {
-                    img = [img yya_imageByResizeToSize:self.cropSize contentMode:self.contentMode];
+                    img = [img yya_imageByResizeToSize:self.cropSize contentMode:self.cropContentMode];
                 }
                 if (self.cornerRadius != 0.0) {
                     img = [img yya_imageByRoundCornerRadius:self.cornerRadius corners:UIRectCornerAllCorners borderWidth:0 borderColor:nil borderLineJoin:kCGLineJoinMiter];
                 }
-                img = img.yy_imageByDecoded;
                 if ([self isCancelled]) break;
                 LOCK_VIEW(view->_buffer[@(idx)] = img ? img : [NSNull null]);
                 view = nil;
@@ -693,7 +693,7 @@ typedef NS_ENUM(NSUInteger, YYAnimatedImageType) {
         operation.nextIndex = nextIndex;
         operation.curImage = image;
         operation.cropSize = self.cropSize;
-        operation.contentMode = self.contentMode;
+        operation.cropContentMode = self.cropContentMode;
         operation.cornerRadius = self.cornerRadius;
         [_requestQueue addOperation:operation];
     }

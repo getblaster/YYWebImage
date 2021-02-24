@@ -82,6 +82,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic) CGSize cropSize;
 
+@property (nonatomic) UIViewContentMode cropContentMode;
+
 @property (nonatomic) CGFloat cornerRadius;
 
 @end

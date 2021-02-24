@@ -124,11 +124,12 @@ static int _YYWebImageHighlightedSetterKey;
         }
         
         CGSize cropSize = CGSizeZero;
-        UIViewContentMode contentMode = self.contentMode;
+        UIViewContentMode cropContentMode = self.contentMode;
         CGFloat cornerRadius = 0.0;
         
         if ([self isKindOfClass:YYAnimatedImageView.class]) {
             cropSize = ((YYAnimatedImageView *)self).cropSize;
+            cropContentMode = ((YYAnimatedImageView *)self).cropContentMode;
             cornerRadius = ((YYAnimatedImageView *)self).cornerRadius;
         }
         
@@ -147,9 +148,9 @@ static int _YYWebImageHighlightedSetterKey;
                     
                     if (!CGSizeEqualToSize(cropSize, CGSizeZero)) {
                         if ([imageFromMemory isKindOfClass:YYImage.class] && ((YYImage *)imageFromMemory).animatedImageData != nil) {
-                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByResizeToSize:cropSize contentMode:contentMode]];
+                            imageFromMemory = [YYImage imageWithData:((YYImage *)imageFromMemory).animatedImageData scale:imageFromMemory.scale image:[imageFromMemory yy_imageByResizeToSize:cropSize contentMode:cropContentMode]];
                         } else {
-                            imageFromMemory = [imageFromMemory yy_imageByResizeToSize:cropSize contentMode:contentMode];
+                            imageFromMemory = [imageFromMemory yy_imageByResizeToSize:cropSize contentMode:cropContentMode];
                         }
                     }
                     
@@ -191,9 +192,9 @@ static int _YYWebImageHighlightedSetterKey;
                 
                 if (!CGSizeEqualToSize(cropSize, CGSizeZero)) {
                     if ([image isKindOfClass:YYImage.class] && ((YYImage *)image).animatedImageData != nil) {
-                        image = [YYImage imageWithData:((YYImage *)image).animatedImageData scale:image.scale image:[image yy_imageByResizeToSize:cropSize contentMode:contentMode]];
+                        image = [YYImage imageWithData:((YYImage *)image).animatedImageData scale:image.scale image:[image yy_imageByResizeToSize:cropSize contentMode:cropContentMode]];
                     } else {
-                        image = [image yy_imageByResizeToSize:cropSize contentMode:contentMode];
+                        image = [image yy_imageByResizeToSize:cropSize contentMode:cropContentMode];
                     }
                 }
                 
